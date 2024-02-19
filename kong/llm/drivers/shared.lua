@@ -182,15 +182,19 @@ function _M.pre_request(conf, request_table)
 
   -- if enabled AND request type is compatible, capture the input for analytics
   if conf.logging and conf.logging.log_payloads then
-    kong.log.set_serialize_value(log_entry_keys.REQUEST_BODY, kong.request.get_raw_body())
+    local provider_length = kong.log.serialize().conf.model.provider.lenght || 0
+    kong.log.set_serialize_value(conf.model.provider[length+1].log_entry_keys.REQUEST_BODY, kong.request.get_raw_body())
   end
 
   return true, nil
 end
 
 function _M.post_request(conf, response_string)
+
+  local provider_length = conf.model.provider and #conf.model.provider or 0
+
   if conf.logging and conf.logging.log_payloads then
-    kong.log.set_serialize_value(log_entry_keys.RESPONSE_BODY, response_string)
+    kong.log.set_serialize_value(conf.model.provider[provider_length].log_entry_keys.RESPONSE_BODY, response_string)
   end
 
   -- analytics and logging
@@ -200,7 +204,15 @@ function _M.post_request(conf, response_string)
 
     -- create a new structure if not
     if not request_analytics then
-      request_analytics = {
+      request_analytics = {}
+    end
+
+    -- check if we already have anylytics for this provider
+    local request_analytics_provider = request_analytics[conf.model.provider]
+
+    -- create a new structure if not
+    if not request_analytics_provider then
+      request_analytics_provider = {
         prompt_tokens = 0,
         completion_tokens = 0,
         total_tokens = 0,
@@ -215,25 +227,25 @@ function _M.post_request(conf, response_string)
     -- this captures the openai-format usage stats from the transformed response body
     if response_object.usage then
       if response_object.usage.prompt_tokens then
-        request_analytics.prompt_tokens = (request_analytics.prompt_tokens + response_object.usage.prompt_tokens)
+        request_analytics_provider.prompt_tokens = (request_analytics_provider.prompt_tokens + response_object.usage.prompt_tokens)
       end
       if response_object.usage.completion_tokens then
-        request_analytics.completion_tokens = (request_analytics.completion_tokens + response_object.usage.completion_tokens)
+        request_analytics_provider.completion_tokens = (request_analytics_provider.completion_tokens + response_object.usage.completion_tokens)
       end
       if response_object.usage.total_tokens then
-        request_analytics.total_tokens = (request_analytics.total_tokens + response_object.usage.total_tokens)
+        request_analytics_provider.total_tokens = (request_analytics_provider.total_tokens + response_object.usage.total_tokens)
       end
     end
 
     -- update context with changed values
-    kong.ctx.shared.analytics = request_analytics
-    for k, v in pairs(request_analytics) do
-      kong.log.set_serialize_value(fmt("%s.%s", log_entry_keys.TOKENS_CONTAINER, k), v)
+    kong.ctx.shared.analytics = request_analytics_provider
+    for k, v in pairs(request_analytics_provider) do
+      kong.log.set_serialize_value(conf.model.provider[provider_length].fmt("%s.%s", log_entry_keys.TOKENS_CONTAINER, k), v)
     end
 
-    kong.log.set_serialize_value(log_entry_keys.REQUEST_MODEL, conf.model.name)
-    kong.log.set_serialize_value(log_entry_keys.RESPONSE_MODEL, response_object.model or conf.model.name)
-    kong.log.set_serialize_value(log_entry_keys.PROVIDER_NAME, conf.model.provider)
+    kong.log.set_serialize_value(conf.model.provider[provider_length].log_entry_keys.REQUEST_MODEL, conf.model.name)
+    kong.log.set_serialize_value(conf.model.provider[provider_length].log_entry_keys.RESPONSE_MODEL, response_object.model or conf.model.name)
+    kong.log.set_serialize_value(conf.model.provider[provider_length].log_entry_keys.PROVIDER_NAME, conf.model.provider)
   end
 
   return nil

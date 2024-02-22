@@ -863,10 +863,13 @@ local function load(path, custom_conf, opts)
       local start_command = conf[env_prefix .. "_start_cmd"] or exists("/usr/local/bin/" .. name)
       local query_command = conf[env_prefix .. "_query_cmd"] or exists("/usr/local/bin/" .. name .. " -dump")
 
+      -- if start_command is unset, we assume the pluginserver process is
+      -- managed externally
       if not start_command then
-        return nil, "start_command undefined for pluginserver " .. name
+        log.warn("start_command undefined for pluginserver " .. name .. "; assuming external process management")
       end
 
+      -- query_command is required
       if not query_command then
         return nil, "query_command undefined for pluginserver " .. name
       end

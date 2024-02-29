@@ -86,8 +86,31 @@ local routes = {
 
       { tags             = typedefs.tags },
       { service = { description = "The Service this Route is associated to. This is where the Route proxies traffic to.", type = "foreign", reference = "services" }, },
-    },
-}
+
+      { snis = { type = "set",
+                 description = "A list of SNIs that match this Route when using stream routing.",
+                 elements = typedefs.sni }, },
+      { sources = typedefs.sources },
+      { destinations = typedefs.destinations },
+
+      { methods        = typedefs.methods },
+      { hosts          = typedefs.hosts },
+      { paths          = typedefs.router_paths },
+      { headers = typedefs.headers {
+        keys = typedefs.header_name {
+          match_none = {
+            {
+              pattern = "^[Hh][Oo][Ss][Tt]$",
+              err = "cannot contain 'host' header, which must be specified in the 'hosts' attribute",
+            },
+          },
+        },
+      } },
+
+      { regex_priority = { description = "A number used to choose which route resolves a given request when several routes match it using regexes simultaneously.", type = "integer", default = 0 }, },
+      { path_handling  = { description = "Controls how the Service path, Route path and requested path are combined when sending a request to the upstream.", type = "string", default = "v0", one_of = { "v0", "v1" }, }, },
+    },  -- fields
+} -- routes
 
 
 local special_fields
@@ -110,28 +133,6 @@ if kong_router_flavor == "expressions" then
 else
 
   special_fields = {
-    { methods        = typedefs.methods },
-    { hosts          = typedefs.hosts },
-    { paths          = typedefs.router_paths },
-    { headers = typedefs.headers {
-      keys = typedefs.header_name {
-        match_none = {
-          {
-            pattern = "^[Hh][Oo][Ss][Tt]$",
-            err = "cannot contain 'host' header, which must be specified in the 'hosts' attribute",
-          },
-        },
-      },
-    } },
-
-    { snis = { type = "set",
-               description = "A list of SNIs that match this Route when using stream routing.",
-               elements = typedefs.sni }, },
-    { sources = typedefs.sources },
-    { destinations = typedefs.destinations },
-
-    { regex_priority = { description = "A number used to choose which route resolves a given request when several routes match it using regexes simultaneously.", type = "integer", default = 0 }, },
-    { path_handling  = { description = "Controls how the Service path, Route path and requested path are combined when sending a request to the upstream.", type = "string", default = "v0", one_of = { "v0", "v1" }, }, },
   }
 
   local PATH_V1_DEPRECATION_MSG

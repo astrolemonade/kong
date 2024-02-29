@@ -59,6 +59,7 @@ local routes = {
       { created_at     = typedefs.auto_timestamp_s },
       { updated_at     = typedefs.auto_timestamp_s },
       { name           = typedefs.utf8_name },
+
       { protocols      = { type     = "set",
                            description = "An array of the protocols this Route should allow.",
                            len_min  = 1,
@@ -92,8 +93,6 @@ local routes = {
 local special_fields
 
 if kong_router_flavor == "expressions" then
-  routes.fields.expression = { description = " The router expression.", type = "string", required = true }
-  routes.fields.priority = { description = "A number used to choose which route resolves a given request when several routes match it using regexes simultaneously.", type = "integer", required = true, default = 0 }
 
   special_fields = {
     { expression = { description = " The router expression.", type = "string", required = true }, },
@@ -109,6 +108,32 @@ if kong_router_flavor == "expressions" then
 
 -- router_flavor in ('traditional_compatible', 'traditional')
 else
+
+  special_fields = {
+    { methods        = typedefs.methods },
+    { hosts          = typedefs.hosts },
+    { paths          = typedefs.router_paths },
+    { headers = typedefs.headers {
+      keys = typedefs.header_name {
+        match_none = {
+          {
+            pattern = "^[Hh][Oo][Ss][Tt]$",
+            err = "cannot contain 'host' header, which must be specified in the 'hosts' attribute",
+          },
+        },
+      },
+    } },
+
+    { snis = { type = "set",
+               description = "A list of SNIs that match this Route when using stream routing.",
+               elements = typedefs.sni }, },
+    { sources = typedefs.sources },
+    { destinations = typedefs.destinations },
+
+    { regex_priority = { description = "A number used to choose which route resolves a given request when several routes match it using regexes simultaneously.", type = "integer", default = 0 }, },
+    { path_handling  = { description = "Controls how the Service path, Route path and requested path are combined when sending a request to the upstream.", type = "string", default = "v0", one_of = { "v0", "v1" }, }, },
+  }
+
   local PATH_V1_DEPRECATION_MSG
 
   if kong_router_flavor == "traditional" then
@@ -153,31 +178,6 @@ else
   end
 
   routes.subschema_key = "protocols"
-
-  special_fields = {
-    { methods        = typedefs.methods },
-    { hosts          = typedefs.hosts },
-    { paths          = typedefs.router_paths },
-    { headers = typedefs.headers {
-      keys = typedefs.header_name {
-        match_none = {
-          {
-            pattern = "^[Hh][Oo][Ss][Tt]$",
-            err = "cannot contain 'host' header, which must be specified in the 'hosts' attribute",
-          },
-        },
-      },
-    } },
-
-    { snis = { type = "set",
-               description = "A list of SNIs that match this Route when using stream routing.",
-               elements = typedefs.sni }, },
-    { sources = typedefs.sources },
-    { destinations = typedefs.destinations },
-
-    { regex_priority = { description = "A number used to choose which route resolves a given request when several routes match it using regexes simultaneously.", type = "integer", default = 0 }, },
-    { path_handling  = { description = "Controls how the Service path, Route path and requested path are combined when sending a request to the upstream.", type = "string", default = "v0", one_of = { "v0", "v1" }, }, },
-  }
 
   routes.entity_checks = entity_checks
 end

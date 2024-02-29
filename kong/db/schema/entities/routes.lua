@@ -1,7 +1,9 @@
 local typedefs = require("kong.db.schema.typedefs")
 local deprecation = require("kong.deprecation")
 
+
 local kong_router_flavor = kong and kong.configuration and kong.configuration.router_flavor
+
 
 -- works with both `traditional_compatible` and `expressions` routes
 local validate_route
@@ -45,8 +47,8 @@ if kong_router_flavor ~= "traditional" then
   end
 end   -- if kong_router_flavor ~= "traditional"
 
-if kong_router_flavor == "expressions" then
-  return {
+
+local routes = {
     name         = "routes",
     primary_key  = { "id" },
     endpoint_key = "name",
@@ -70,6 +72,7 @@ if kong_router_flavor == "expressions" then
                            },
                            default = { "http", "https" }, -- TODO: different default depending on service's scheme
                          }, },
+
       { https_redirect_status_code = { type = "integer",
                                        description = "The status code Kong responds with when all properties of a Route match except the protocol",
                                        one_of = { 426, 301, 302, 307, 308 },
@@ -79,19 +82,25 @@ if kong_router_flavor == "expressions" then
       { preserve_host  = { description = "When matching a Route via one of the hosts domain names, use the request Host header in the upstream request headers.", type = "boolean", required = true, default = false }, },
       { request_buffering  = { description = "Whether to enable request body buffering or not. With HTTP 1.1.", type = "boolean", required = true, default = true }, },
       { response_buffering  = { description = "Whether to enable response body buffering or not.", type = "boolean", required = true, default = true }, },
+
       { tags             = typedefs.tags },
       { service = { description = "The Service this Route is associated to. This is where the Route proxies traffic to.", type = "foreign", reference = "services" }, },
-      { expression = { description = " The router expression.", type = "string", required = true }, },
-      { priority = { description = "A number used to choose which route resolves a given request when several routes match it using regexes simultaneously.", type = "integer", required = true, default = 0 }, },
     },
+}
 
-    entity_checks = {
+
+if kong_router_flavor == "expressions" then
+  routes.fields.expression = { description = " The router expression.", type = "string", required = true }
+  routes.fields.priority = { description = "A number used to choose which route resolves a given request when several routes match it using regexes simultaneously.", type = "integer", required = true, default = 0 }
+
+  routes.entity_checks = {
       { custom_entity_check = {
         field_sources = { "expression", "id", "protocols", },
         fn = validate_route,
       } },
-    },
-  }
+    }
+
+  return routes
 
 -- router_flavor in ('traditional_compatible', 'traditional')
 else

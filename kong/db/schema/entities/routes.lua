@@ -89,9 +89,16 @@ local routes = {
 }
 
 
+local special_fields
+
 if kong_router_flavor == "expressions" then
   routes.fields.expression = { description = " The router expression.", type = "string", required = true }
   routes.fields.priority = { description = "A number used to choose which route resolves a given request when several routes match it using regexes simultaneously.", type = "integer", required = true, default = 0 }
+
+  special_fields = {
+    { expression = { description = " The router expression.", type = "string", required = true }, },
+    { priority = { description = "A number used to choose which route resolves a given request when several routes match it using regexes simultaneously.", type = "integer", required = true, default = 0 }, },
+  }
 
   routes.entity_checks = {
       { custom_entity_check = {
@@ -99,8 +106,6 @@ if kong_router_flavor == "expressions" then
         fn = validate_route,
       } },
     }
-
-  return routes
 
 -- router_flavor in ('traditional_compatible', 'traditional')
 else
@@ -147,65 +152,38 @@ else
     )
   end
 
-  return {
-    name         = "routes",
-    primary_key  = { "id" },
-    endpoint_key = "name",
-    workspaceable = true,
-    subschema_key = "protocols",
+  routes.subschema_key = "protocols"
 
-    fields = {
-      { id             = typedefs.uuid, },
-      { created_at     = typedefs.auto_timestamp_s },
-      { updated_at     = typedefs.auto_timestamp_s },
-      { name           = typedefs.utf8_name },
-      { protocols      = { type     = "set",
-                           description = "An array of the protocols this Route should allow.",
-                           len_min  = 1,
-                           required = true,
-                           elements = typedefs.protocol,
-                           mutually_exclusive_subsets = {
-                             { "http", "https" },
-                             { "tcp", "tls", "udp" },
-                             { "tls_passthrough" },
-                             { "grpc", "grpcs" },
-                           },
-                           default = { "http", "https" }, -- TODO: different default depending on service's scheme
-                         }, },
-      { methods        = typedefs.methods },
-      { hosts          = typedefs.hosts },
-      { paths          = typedefs.router_paths },
-      { headers = typedefs.headers {
-        keys = typedefs.header_name {
-          match_none = {
-            {
-              pattern = "^[Hh][Oo][Ss][Tt]$",
-              err = "cannot contain 'host' header, which must be specified in the 'hosts' attribute",
-            },
+  special_fields = {
+    { methods        = typedefs.methods },
+    { hosts          = typedefs.hosts },
+    { paths          = typedefs.router_paths },
+    { headers = typedefs.headers {
+      keys = typedefs.header_name {
+        match_none = {
+          {
+            pattern = "^[Hh][Oo][Ss][Tt]$",
+            err = "cannot contain 'host' header, which must be specified in the 'hosts' attribute",
           },
         },
-      } },
-      { https_redirect_status_code = { type = "integer",
-                                       description = "The status code Kong responds with when all properties of a Route match except the protocol",
-                                       one_of = { 426, 301, 302, 307, 308 },
-                                       default = 426, required = true,
-                                     }, },
-      { regex_priority = { description = "A number used to choose which route resolves a given request when several routes match it using regexes simultaneously.", type = "integer", default = 0 }, },
-      { strip_path     = { description = "When matching a Route via one of the paths, strip the matching prefix from the upstream request URL.", type = "boolean", required = true, default = true }, },
-      { path_handling  = { description = "Controls how the Service path, Route path and requested path are combined when sending a request to the upstream.", type = "string", default = "v0", one_of = { "v0", "v1" }, }, },
-      { preserve_host  = { description = "When matching a Route via one of the hosts domain names, use the request Host header in the upstream request headers.", type = "boolean", required = true, default = false }, },
-      { request_buffering  = { description = "Whether to enable request body buffering or not. With HTTP 1.1.", type = "boolean", required = true, default = true }, },
-      { response_buffering  = { description = "Whether to enable response body buffering or not.", type = "boolean", required = true, default = true }, },
-      { snis = { type = "set",
-                 description = "A list of SNIs that match this Route when using stream routing.",
-                 elements = typedefs.sni }, },
-      { sources = typedefs.sources },
-      { destinations = typedefs.destinations },
-      { tags             = typedefs.tags },
-      { service = { description = "The Service this Route is associated to. This is where the Route proxies traffic to.",
-      type = "foreign", reference = "services" }, },
-    },
+      },
+    } },
 
-    entity_checks = entity_checks,
+    { snis = { type = "set",
+               description = "A list of SNIs that match this Route when using stream routing.",
+               elements = typedefs.sni }, },
+    { sources = typedefs.sources },
+    { destinations = typedefs.destinations },
+
+    { regex_priority = { description = "A number used to choose which route resolves a given request when several routes match it using regexes simultaneously.", type = "integer", default = 0 }, },
+    { path_handling  = { description = "Controls how the Service path, Route path and requested path are combined when sending a request to the upstream.", type = "string", default = "v0", one_of = { "v0", "v1" }, }, },
   }
+
+  routes.entity_checks = entity_checks
 end
+
+for _, v in ipairs(special_fields) do
+  table.insert(routes.fields, v)
+end
+
+return routes

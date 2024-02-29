@@ -122,7 +122,11 @@ if kong_router_flavor == "expressions" then
 
   routes.entity_checks = {
       { custom_entity_check = {
-        field_sources = { "expression", "id", "protocols", },
+        field_sources = { "expression", "id", "protocols",
+                          "methods", "hosts", "paths", "headers",
+                          "snis", "sources", "destinations",
+                        },
+        run_with_missing_fields = true,
         fn = validate_route,
       } },
     }

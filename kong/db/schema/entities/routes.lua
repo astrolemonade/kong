@@ -113,11 +113,9 @@ local routes = {
 } -- routes
 
 
-local special_fields
-
 if kong_router_flavor == "expressions" then
 
-  special_fields = {
+  local special_fields = {
     { expression = { description = " The router expression.", type = "string", required = true }, },
     { priority = { description = "A number used to choose which route resolves a given request when several routes match it using regexes simultaneously.", type = "integer", required = true, default = 0 }, },
   }
@@ -129,11 +127,12 @@ if kong_router_flavor == "expressions" then
       } },
     }
 
+  for _, v in ipairs(special_fields) do
+    table.insert(routes.fields, v)
+  end
+
 -- router_flavor in ('traditional_compatible', 'traditional')
 else
-
-  special_fields = {
-  }
 
   local PATH_V1_DEPRECATION_MSG
 
@@ -183,8 +182,5 @@ else
   routes.entity_checks = entity_checks
 end
 
-for _, v in ipairs(special_fields) do
-  table.insert(routes.fields, v)
-end
 
 return routes

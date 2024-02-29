@@ -5,6 +5,9 @@ local deprecation = require("kong.deprecation")
 local kong_router_flavor = kong and kong.configuration and kong.configuration.router_flavor
 
 
+local entity_checks = {}
+
+
 -- works with both `traditional_compatible` and `expressions` routes
 local validate_route
 if kong_router_flavor ~= "traditional" then
@@ -45,6 +48,17 @@ if kong_router_flavor ~= "traditional" then
 
     return true
   end
+
+  table.insert(entity_checks,
+    { custom_entity_check = {
+      field_sources = { "expression", "id", "protocols",
+                        "methods", "hosts", "paths", "headers",
+                        "snis", "sources", "destinations",
+                      },
+      run_with_missing_fields = true,
+      fn = validate_route,
+    } }
+  )
 end   -- if kong_router_flavor ~= "traditional"
 
 
@@ -120,17 +134,6 @@ if kong_router_flavor == "expressions" then
     { priority = { description = "A number used to choose which route resolves a given request when several routes match it using regexes simultaneously.", type = "integer", required = true, default = 0 }, },
   }
 
-  routes.entity_checks = {
-      { custom_entity_check = {
-        field_sources = { "expression", "id", "protocols",
-                          "methods", "hosts", "paths", "headers",
-                          "snis", "sources", "destinations",
-                        },
-        run_with_missing_fields = true,
-        fn = validate_route,
-      } },
-    }
-
   for _, v in ipairs(special_fields) do
     table.insert(routes.fields, v)
   end
@@ -153,7 +156,7 @@ else
       "please use path_handling='v0' instead"
   end
 
-  local entity_checks = {
+  local special_entity_checks = {
     { conditional = { if_field = "protocols",
                       if_match = { elements = { type = "string", not_one_of = { "grpcs", "https", "tls", "tls_passthrough" }}},
                       then_field = "snis",
@@ -172,19 +175,14 @@ else
     }},
   }
 
-  if kong_router_flavor == "traditional_compatible" then
-    table.insert(entity_checks,
-      { custom_entity_check = {
-        run_with_missing_fields = true,
-        fn = validate_route,
-      }}
-    )
+  for _, v in ipairs(special_entity_checks) do
+    table.insert(entity_checks, v)
   end
 
   routes.subschema_key = "protocols"
 
-  routes.entity_checks = entity_checks
 end
 
+routes.entity_checks = entity_checks
 
 return routes

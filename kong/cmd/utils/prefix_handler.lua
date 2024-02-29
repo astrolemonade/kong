@@ -791,23 +791,13 @@ local function prepare_prefix(kong_config, nginx_custom_template_path, skip_writ
     "",
   }
 
-  local refs = kong_config["$refs"]
-  local has_refs = refs and type(refs) == "table"
-
-  local secrets
-  if write_process_secrets and has_refs then
-    secrets = process_secrets.extract(kong_config)
-  end
-
   local function quote_hash(s)
     return s:gsub("#", "\\#")
   end
 
-  for k, v in pairs(kong_config) do
-    if has_refs and refs[k] then
-      v = refs[k]
-    end
+  local secrets = write_process_secrets and process_secrets.extract(kong_config, true)
 
+  for k, v in pairs(kong_config) do
     if type(v) == "table" then
       if (getmetatable(v) or {}).__tostring then
         -- the 'tostring' meta-method knows how to serialize

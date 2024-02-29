@@ -397,6 +397,39 @@ local function load(path, custom_conf, opts)
 
     loaded_vaults = setmetatable(vaults, conf_constants._NOP_TOSTRING_MT)
 
+    -- collect references
+    local is_reference = require "kong.pdk.vault".is_reference
+    for k, v in pairs(conf) do
+      local typ = (conf_constants.CONF_PARSERS[k] or {}).typ or "string"
+      v = parse_value(v, typ)
+      if typ == "array" then
+        local found
+
+        for i, r in ipairs(v) do
+          if is_reference(r) then
+            found = true
+            if not refs then
+              refs = setmetatable({}, conf_constants._NOP_TOSTRING_MT)
+            end
+            if not refs[k] then
+              refs[k] = {}
+            end
+            refs[k][i] = r
+          end
+        end
+
+        if found then
+          conf[k] = v
+        end
+
+      elseif is_reference(v) then
+        if not refs then
+          refs = setmetatable({}, conf_constants._NOP_TOSTRING_MT)
+        end
+        refs[k] = v
+      end
+    end
+
     if get_phase() == "init" then
       local secrets = getenv("KONG_PROCESS_SECRETS")
       if secrets then
@@ -420,36 +453,34 @@ local function load(path, custom_conf, opts)
         end
 
         for k, deref in pairs(secrets) do
-          local v = parse_value(conf[k], "string")
-          if refs then
-            refs[k] = v
-          else
-            refs = setmetatable({ [k] = v }, conf_constants._NOP_TOSTRING_MT)
-          end
-
           conf[k] = deref
         end
       end
 
-    else
+    elseif refs then
       local vault_conf = { loaded_vaults = loaded_vaults }
       for k, v in pairs(conf) do
         if sub(k, 1, 6) == "vault_" then
           vault_conf[k] = parse_value(v, "string")
         end
       end
-
       local vault = require("kong.pdk.vault").new({ configuration = vault_conf })
 
-      for k, v in pairs(conf) do
-        v = parse_value(v, "string")
-        if vault.is_reference(v) then
-          if refs then
-            refs[k] = v
-          else
-            refs = setmetatable({ [k] = v }, conf_constants._NOP_TOSTRING_MT)
+      for k, v in pairs(refs) do
+        if type(v) == "table" then
+          for i, r in pairs(v) do
+            local deref, deref_err = vault.get(r)
+            if deref == nil or deref_err then
+              if opts.starting then
+                return nil, fmt("failed to dereference '%s': %s for config option '%s[%d]'", r, deref_err, k, i)
+              end
+
+            else
+              conf[k][i] = deref
+            end
           end
 
+        else
           local deref, deref_err = vault.get(v)
           if deref == nil or deref_err then
             if opts.starting then
@@ -466,7 +497,6 @@ local function load(path, custom_conf, opts)
 
   -- validation
   local ok, err, errors = check_and_parse(conf, opts)
-
   if not opts.starting then
     log.enable()
   end
@@ -622,12 +652,14 @@ local function load(path, custom_conf, opts)
     local conf_arr = {}
 
     for k, v in pairs(conf) do
-      local to_print = v
-      if conf_constants.CONF_SENSITIVE[k] then
-        to_print = conf_constants.CONF_SENSITIVE_PLACEHOLDER
-      end
+      if k ~= "$refs" then
+        local to_print = v
+        if conf_constants.CONF_SENSITIVE[k] then
+          to_print = conf_constants.CONF_SENSITIVE_PLACEHOLDER
+        end
 
-      conf_arr[#conf_arr+1] = k .. " = " .. pl_pretty.write(to_print, "")
+        conf_arr[#conf_arr+1] = k .. " = " .. pl_pretty.write(to_print, "")
+      end
     end
 
     sort(conf_arr)

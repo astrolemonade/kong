@@ -11,6 +11,7 @@ local fmt = string.format
 local sub = string.sub
 local type = type
 local pairs = pairs
+local shallow_copy = require("kong.tools.table").shallow_copy
 
 
 local CIPHER_ALG = "aes-256-gcm"
@@ -56,15 +57,25 @@ local function hash_key_data(key_data)
 end
 
 
-local function extract(conf)
+local function extract(conf, manipulate_conf)
   local refs = conf["$refs"]
   if not refs or type(refs) ~= "table" then
     return
   end
 
   local secrets = {}
-  for k in pairs(refs) do
-    secrets[k] = conf[k]
+  for k, v in pairs(refs) do
+    secrets[k] = shallow_copy(conf[k])
+    if manipulate_conf then
+      if type(v) == "table" then
+        for i, r in pairs(v) do
+          conf[k][i] = r
+        end
+
+      else
+        conf[k] = v
+      end
+    end
   end
 
   return secrets

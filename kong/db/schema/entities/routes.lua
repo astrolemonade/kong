@@ -138,6 +138,20 @@ if kong_router_flavor == "expressions" then
     table.insert(routes.fields, v)
   end
 
+  routes.entity_checks = entity_checks
+  --[[
+  routes.entity_checks = {
+      { custom_entity_check = {
+        field_sources = { "expression", "id", "protocols",
+                          "methods", "hosts", "paths", "headers",
+                          "snis", "sources", "destinations",
+                        },
+        run_with_missing_fields = true,
+        fn = validate_route,
+      } },
+    }
+    --]]
+
 -- router_flavor in ('traditional_compatible', 'traditional')
 else
 
@@ -156,7 +170,7 @@ else
       "please use path_handling='v0' instead"
   end
 
-  local special_entity_checks = {
+  local entity_checks = {
     { conditional = { if_field = "protocols",
                       if_match = { elements = { type = "string", not_one_of = { "grpcs", "https", "tls", "tls_passthrough" }}},
                       then_field = "snis",
@@ -175,14 +189,22 @@ else
     }},
   }
 
-  for _, v in ipairs(special_entity_checks) do
-    table.insert(entity_checks, v)
+  if kong_router_flavor == "traditional_compatible" then
+    table.insert(entity_checks,
+      { custom_entity_check = {
+        field_sources = { "expression", "id", "protocols",
+                          "methods", "hosts", "paths", "headers",
+                          "snis", "sources", "destinations",
+                        },
+        run_with_missing_fields = true,
+        fn = validate_route,
+      }}
+    )
   end
 
   routes.subschema_key = "protocols"
 
+  routes.entity_checks = entity_checks
 end
-
-routes.entity_checks = entity_checks
 
 return routes

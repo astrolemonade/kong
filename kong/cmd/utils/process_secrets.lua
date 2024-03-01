@@ -57,25 +57,15 @@ local function hash_key_data(key_data)
 end
 
 
-local function extract(conf, manipulate_conf)
+local function extract(conf)
   local refs = conf["$refs"]
   if not refs or type(refs) ~= "table" then
     return
   end
 
   local secrets = {}
-  for k, v in pairs(refs) do
+  for k in pairs(refs) do
     secrets[k] = shallow_copy(conf[k])
-    if manipulate_conf then
-      if type(v) == "table" then
-        for i, r in pairs(v) do
-          conf[k][i] = r
-        end
-
-      else
-        conf[k] = v
-      end
-    end
   end
 
   return secrets

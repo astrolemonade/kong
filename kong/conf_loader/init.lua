@@ -310,6 +310,7 @@ local function load(path, custom_conf, opts)
     do
       -- get env vars prefixed with KONG_<dyn_key_prefix>
       local env_vars, err = env.read_all()
+
       if err then
         return nil, err
       end
@@ -361,7 +362,7 @@ local function load(path, custom_conf, opts)
   -- remove the unnecessary fields if we are still at the very early stage
   -- before executing the main `resty` cmd, i.e. still in `bin/kong`
   if opts.pre_cmd then
-    for k, v in pairs(conf) do
+    for k in pairs(conf) do
       if not conf_constants.CONF_BASIC[k] then
         conf[k] = nil
       end
@@ -430,30 +431,45 @@ local function load(path, custom_conf, opts)
       end
     end
 
-    if get_phase() == "init" then
-      local secrets = getenv("KONG_PROCESS_SECRETS")
-      if secrets then
-        C.unsetenv("KONG_PROCESS_SECRETS")
+    local prefix = abspath(conf.prefix or ngx.config.prefix())
+    local secret_env
+    local secret_file
+    local secrets = getenv("KONG_PROCESS_SECRETS")
+    if secrets then
+      secret_env = "KONG_PROCESS_SECRETS"
 
-      else
-        local path = pl_path.join(abspath(ngx.config.prefix()), unpack(conf_constants.PREFIX_PATHS.kong_process_secrets))
-        if exists(path) then
-          secrets, err = pl_file.read(path, true)
-          pl_file.delete(path)
-          if not secrets then
-            return nil, fmt("failed to read process secrets file: %s", err)
-          end
+    else
+      local secrets_path = pl_path.join(prefix, unpack(conf_constants.PREFIX_PATHS.kong_process_secrets))
+      if exists(secrets_path) then
+        secrets, err = pl_file.read(secrets_path, true)
+        if not secrets then
+          pl_file.delete(secrets_path)
+          return nil, fmt("failed to read process secrets file: %s", err)
         end
+        secret_file = secrets_path
+      end
+    end
+
+    if secrets then
+      local env_path = pl_path.join(prefix, unpack(conf_constants.PREFIX_PATHS.kong_env))
+      secrets, err = process_secrets.deserialize(secrets, env_path)
+      if not secrets then
+        return nil, err
       end
 
-      if secrets then
-        secrets, err = process_secrets.deserialize(secrets, path)
-        if not secrets then
-          return nil, err
-        end
+      -- TODO: remember!
+      for k, deref in pairs(secrets) do
+        conf[k] = deref
+      end
+    end
 
-        for k, deref in pairs(secrets) do
-          conf[k] = deref
+    if get_phase() == "init" then
+      if secrets then
+        if secret_env then
+          C.unsetenv(secret_env)
+        end
+        if secret_file then
+          pl_file.delete(secret_file)
         end
       end
 
@@ -465,7 +481,6 @@ local function load(path, custom_conf, opts)
         end
       end
       local vault = require("kong.pdk.vault").new({ configuration = vault_conf })
-
       for k, v in pairs(refs) do
         if type(v) == "table" then
           for i, r in pairs(v) do
@@ -473,6 +488,12 @@ local function load(path, custom_conf, opts)
             if deref == nil or deref_err then
               if opts.starting then
                 return nil, fmt("failed to dereference '%s': %s for config option '%s[%d]'", r, deref_err, k, i)
+              end
+
+              -- not that fatal if resolving fails during stopping (e.g. missing environment variables)
+              if opts.stopping then
+                conf[k] = ""
+                break
               end
 
             else
@@ -485,6 +506,12 @@ local function load(path, custom_conf, opts)
           if deref == nil or deref_err then
             if opts.starting then
               return nil, fmt("failed to dereference '%s': %s for config option '%s'", v, deref_err, k)
+            end
+
+            -- not that fatal if resolving fails during stopping (e.g. missing environment variables)
+            if opts.stopping then
+              conf[k] = ""
+              break
             end
 
           else

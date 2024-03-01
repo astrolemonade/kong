@@ -22,7 +22,6 @@ local log_entry_keys = {
 local openai_override = os.getenv("OPENAI_TEST_PORT")
 
 local function split_table_key(obj)
-
   local result = {}
 
   for key, value in pairs(obj) do

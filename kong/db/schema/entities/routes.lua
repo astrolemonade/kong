@@ -10,7 +10,7 @@ local entity_checks = {}
 
 -- works with both `traditional_compatible` and `expressions` routes
 local validate_route
-if kong_router_flavor ~= "traditional" then
+if kong_router_flavor == "traditional_compatible" or kong_router_flavor == "expressions" then
   local ipairs = ipairs
   local tonumber = tonumber
   local re_match = ngx.re.match
@@ -124,6 +124,8 @@ local routes = {
       { regex_priority = { description = "A number used to choose which route resolves a given request when several routes match it using regexes simultaneously.", type = "integer", default = 0 }, },
       { path_handling  = { description = "Controls how the Service path, Route path and requested path are combined when sending a request to the upstream.", type = "string", default = "v0", one_of = { "v0", "v1" }, }, },
     },  -- fields
+
+    entity_checks = entity_checks,
 } -- routes
 
 
@@ -137,20 +139,6 @@ if kong_router_flavor == "expressions" then
   for _, v in ipairs(special_fields) do
     table.insert(routes.fields, v)
   end
-
-  routes.entity_checks = entity_checks
-  --[[
-  routes.entity_checks = {
-      { custom_entity_check = {
-        field_sources = { "expression", "id", "protocols",
-                          "methods", "hosts", "paths", "headers",
-                          "snis", "sources", "destinations",
-                        },
-        run_with_missing_fields = true,
-        fn = validate_route,
-      } },
-    }
-    --]]
 
 -- router_flavor in ('traditional_compatible', 'traditional')
 else
@@ -170,7 +158,7 @@ else
       "please use path_handling='v0' instead"
   end
 
-  local entity_checks = {
+  local special_entity_checks = {
     { conditional = { if_field = "protocols",
                       if_match = { elements = { type = "string", not_one_of = { "grpcs", "https", "tls", "tls_passthrough" }}},
                       then_field = "snis",
@@ -189,22 +177,11 @@ else
     }},
   }
 
-  if kong_router_flavor == "traditional_compatible" then
-    table.insert(entity_checks,
-      { custom_entity_check = {
-        field_sources = { "expression", "id", "protocols",
-                          "methods", "hosts", "paths", "headers",
-                          "snis", "sources", "destinations",
-                        },
-        run_with_missing_fields = true,
-        fn = validate_route,
-      }}
-    )
+  for _, v in ipairs(special_entity_checks) do
+    table.insert(routes.entity_checks, v)
   end
 
   routes.subschema_key = "protocols"
-
-  routes.entity_checks = entity_checks
 end
 
 return routes

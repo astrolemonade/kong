@@ -216,7 +216,8 @@ function _M.generate_wrap_function(max_args)
     args = args .. ", a" .. i
   end
 
-  local func = assert(loadstring(string.format(TEMPLATE, args, args, args, args, args, args, args, args)))()
+  local chunkname = "wrap_" .. tostring(max_args)
+  local func = assert(loadstring(string.format(TEMPLATE, args, args, args, args, args, args, args, args), chunkname))()
   assert(type(func) == "function", "failed to generate wrap function: " .. tostring(func))
   return func
 end

@@ -17,7 +17,6 @@ local etrace_exit_span
 
 
 local function before()
-  ngx.log(ngx.ERR, "redis")
   etrace_enter_span("redis")
 end
 

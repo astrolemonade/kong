@@ -130,7 +130,7 @@ else
   }
 
   if kong_router_flavor == "traditional_compatible" then
-    local is_empty_field = require("kong.router.atc").is_empty_field
+    local is_empty_field = require("kong.router.transform").is_empty_field
 
     table.insert(entity_checks,
       { custom_entity_check = {

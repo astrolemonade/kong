@@ -16,6 +16,7 @@ if kong_router_flavor == "traditional_compatible" or kong_router_flavor == "expr
   local re_match = ngx.re.match
 
   local router = require("resty.router.router")
+  local is_empty_field = require("kong.router.transform").is_empty_field
   local get_schema = require("kong.router.atc").schema
   local get_expression = kong_router_flavor == "traditional_compatible" and
                          require("kong.router.compat").get_expression or
@@ -25,6 +26,18 @@ if kong_router_flavor == "traditional_compatible" or kong_router_flavor == "expr
   local HTTP_PATH_SEGMENTS_SUFFIX_REG = [[^(0|[1-9]\d*)(_([1-9]\d*))?$]]
 
   validate_route = function(entity)
+    if is_empty_field(entity.snis) and
+       is_empty_field(entity.sources) and
+       is_empty_field(entity.destinations) and
+       is_empty_field(entity.methods) and
+       is_empty_field(entity.hosts) and
+       is_empty_field(entity.paths) and
+       is_empty_field(entity.headers) and
+       is_empty_field(entity.expression)
+    then
+      return true
+    end
+
     local schema = get_schema(entity.protocols)
     local exp = get_expression(entity)
 
@@ -51,9 +64,10 @@ if kong_router_flavor == "traditional_compatible" or kong_router_flavor == "expr
 
   table.insert(entity_checks,
     { custom_entity_check = {
-      field_sources = { "expression", "id", "protocols",
+      field_sources = { "id", "protocols",
                         "methods", "hosts", "paths", "headers",
                         "snis", "sources", "destinations",
+                        "expression",
                       },
       run_with_missing_fields = true,
       fn = validate_route,

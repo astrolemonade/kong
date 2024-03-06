@@ -140,10 +140,13 @@ else
                         },
         run_with_missing_fields = true,
         fn = function(entity)
-          if is_empty_field(entity.snis)    and
-             is_empty_field(entity.sources) and is_empty_field(entity.destinations) and
-             is_empty_field(entity.methods) and is_empty_field(entity.hosts) and
-             is_empty_field(entity.paths)   and is_empty_field(entity.headers)
+          if is_empty_field(entity.snis) and
+             is_empty_field(entity.sources) and
+             is_empty_field(entity.destinations) and
+             is_empty_field(entity.methods) and
+             is_empty_field(entity.hosts) and
+             is_empty_field(entity.paths) and
+             is_empty_field(entity.headers)
           then
             return true
           end

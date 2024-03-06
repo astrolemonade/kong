@@ -5048,6 +5048,57 @@ do
       assert.same("/bar", match_t.upstream_uri)
     end)
   end)
+
+  describe("Router (flavor = " .. flavor .. ")", function()
+    reload_router(flavor, "stream")
+
+    it("[#stream SNI-based routing does work using tls_passthrough]", function()
+      local use_case = {
+        {
+          service = service,
+          route   = {
+            id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
+            protocols = { "tls_passthrough", },
+            snis = { "www.example.com" },
+            preserve_host = true,
+          },
+        },
+        {
+          service = service,
+          route   = {
+            id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
+            protocols = { "tls_passthrough", },
+            snis = { "www.example.org" },
+            preserve_host = true,
+          },
+        },
+      }
+
+      local router = assert(new_router(use_case))
+
+      local _ngx = {
+        var = {
+          ssl_preread_server_name = "www.example.com",
+        },
+      }
+      router._set_ngx(_ngx)
+      local match_t = router:exec()
+
+      assert.truthy(match_t)
+      assert.same(use_case[1].route, match_t.route)
+
+      local _ngx = {
+        var = {
+          ssl_preread_server_name = "www.example.org",
+        },
+      }
+      router._set_ngx(_ngx)
+      local match_t = router:exec()
+
+      assert.truthy(match_t)
+      assert.same(use_case[2].route, match_t.route)
+    end)
+  end)
 end   -- local flavor = "traditional_compatible"
 
 do
